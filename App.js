@@ -7,9 +7,10 @@
  */
 
 import React, { Component } from "react";
-import { YellowBox } from "react-native";
+import TimerCountdown from "react-native-timer-countdown";
+import moment from "moment";
 import PushNotification from "react-native-push-notification";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, StatusBar, View } from "react-native";
 import BackgroundTimer from "react-native-background-timer";
 
 const instructions = Platform.select({
@@ -75,9 +76,57 @@ export default class App extends React.Component {
   render() {
     return (
       <View style={styles.container}>
-        <Text style={styles.welcome}>Welcome to React Native!</Text>
-        <Text style={styles.instructions}>To get started, edit App.js</Text>
-        <Text style={styles.instructions}>{instructions}</Text>
+        <StatusBar barStyle="light-content" backgroundColor="#786BFF" />
+        <View
+          style={[
+            styles.itemcontainer,
+            { flexDirection: "column", flex: 4, marginBottom: 10 }
+          ]}
+        >
+          <View style={{ backgroundColor: "#786BFF", flex: 3 }} />
+          <View style={{ flex: 2, flexDirection: "row" }}>
+            <View
+              style={{
+                backgroundColor: "green",
+                flex: 2,
+                justifyContent: "center",
+                alignItems: "center"
+              }}
+            >
+              <Text style={styles.label}>Next pray schedule</Text>
+              <TimerCountdown
+                initialSecondsRemaining={24 * 60 * 60 * 1000}
+                allowFontScaling={true}
+                style={styles.welcome}
+                formatSecondsRemaining={milliseconds => {
+                  const remainingSec = Math.round(milliseconds / 1000);
+                  const seconds = parseInt((remainingSec % 60).toString(), 10);
+                  const minutes = parseInt(
+                    ((remainingSec / 60) % 60).toString(),
+                    10
+                  );
+                  const hours = parseInt((remainingSec / 3600).toString(), 10);
+                  const s = seconds < 10 ? "0" + seconds : seconds;
+                  const m = minutes < 10 ? "0" + minutes : minutes;
+                  let h = hours < 10 ? "0" + hours : hours;
+                  h = h === "00" ? "" : h;
+                  return `${h}h ${m}m ${s}s`;
+                }}
+              />
+            </View>
+            <View
+              style={{
+                flex: 2,
+                justifyContent: "center",
+                alignItems: "center"
+              }}
+            >
+              <Text style={styles.label}>Last schedule update</Text>
+              <Text>{moment().format("DD MMM YYYY h:mm:ss")}</Text>
+            </View>
+          </View>
+        </View>
+        <View style={[styles.itemcontainer, { flex: 6 }]} />
       </View>
     );
   }
@@ -85,19 +134,24 @@ export default class App extends React.Component {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#F5FCFF"
+    backgroundColor: "#DFE4E9",
+    flexDirection: "column",
+    flex: 1
+  },
+  label: {
+    fontSize: 17
   },
   welcome: {
     fontSize: 20,
     textAlign: "center",
-    margin: 10
+    marginTop: 10
   },
   instructions: {
     textAlign: "center",
     color: "#333333",
     marginBottom: 5
+  },
+  itemcontainer: {
+    backgroundColor: "white"
   }
 });
