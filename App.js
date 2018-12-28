@@ -9,18 +9,33 @@
 import React, { Component } from "react";
 import TimerCountdown from "react-native-timer-countdown";
 import moment from "moment";
+import RNAlarmClock from "react-native-alarm-clock";
+import ReactNativeAN from "react-native-alarm-notification";
+import axios from "axios";
+import { LineChart } from "react-native-chart-kit";
 import PushNotification from "react-native-push-notification";
-import { Platform, StyleSheet, Text, StatusBar, View } from "react-native";
+import {
+  Platform,
+  AsyncStorage,
+  StyleSheet,
+  NetInfo,
+  Text,
+  StatusBar,
+  Dimensions,
+  View
+} from "react-native";
+// import axios from "axios";
 import BackgroundTimer from "react-native-background-timer";
-
-const instructions = Platform.select({
-  ios: "Press Cmd+R to reload,\n" + "Cmd+D or shake for dev menu",
-  android:
-    "Double tap R on your keyboard to reload,\n" +
-    "Shake or press menu button for dev menu"
-});
+import ScheduleItem from "./components/scheduleitem";
 
 export default class App extends React.Component {
+  state = {
+    isConnected: false,
+    appShouldUpdate: false,
+    someText: "null",
+    data: null,
+    lastScheduleUpdate: "null"
+  };
   makeNotification() {
     PushNotification.localNotification({
       /* Android Only Properties */
@@ -52,25 +67,49 @@ export default class App extends React.Component {
     });
   }
   componentDidMount() {
-    const currentTime = new Date().getTime(); //current unix timestamp
-    const execTime = new Date().setHours(17, 5, 0, 0); //API call time = today at 20:00
-    let timeLeft;
-    if (currentTime < execTime) {
-      //it's currently earlier than 20:00
-      timeLeft = execTime - currentTime;
-    } else {
-      //it's currently later than 20:00, schedule for tomorrow at 20:00
-      timeLeft = execTime + 24 * 60 * 60 * 1000 - currentTime;
-    }
-    console.log("timeleft:", timeLeft);
     var ref = this;
+    // var count = 1;
+    // var minutes = 8;
+    const timeLeft = ref.getRemainingTime();
     BackgroundTimer.setTimeout(function() {
-      ref.makeNotification();
+      ref.setState(
+        {
+          ...ref.state,
+          data: null
+        },
+        () => ref.fetchNewSchedule()
+      );
       BackgroundTimer.setInterval(function() {
-        ref.makeNotification();
+        ref.setState(
+          {
+            ...ref.state,
+            data: null
+          },
+          () => ref.fetchNewSchedule()
+        );
       }, 86400000);
     }, timeLeft);
-    console.log("tingting");
+    NetInfo.isConnected.fetch().then(res => {
+      if (ref.state.appShouldUpdate) {
+        ref.setState({
+          ...this.state,
+          someText: "it's working"
+        });
+      }
+      ref.setState({
+        isConnected: res
+      });
+    });
+    function handleFirstConnectivityChange(res) {
+      ref.setState({
+        isConnected: res
+      });
+    }
+    NetInfo.isConnected.addEventListener(
+      "connectionChange",
+      handleFirstConnectivityChange
+    );
+    this.getScheduleFromStorage();
   }
 
   render() {
@@ -83,21 +122,55 @@ export default class App extends React.Component {
             { flexDirection: "column", flex: 4, marginBottom: 10 }
           ]}
         >
-          <View style={{ backgroundColor: "#786BFF", flex: 3 }} />
-          <View style={{ flex: 2, flexDirection: "row" }}>
+          <View style={{ backgroundColor: "#786BFF", flex: 2.3 }}>
+            <LineChart
+              data={{
+                labels: [
+                  "January",
+                  "February",
+                  "March",
+                  "April",
+                  "May",
+                  "June"
+                ],
+                datasets: [
+                  {
+                    data: [
+                      Math.random() * 100,
+                      Math.random() * 100,
+                      Math.random() * 100,
+                      Math.random() * 100,
+                      Math.random() * 100,
+                      Math.random() * 100
+                    ]
+                  }
+                ]
+              }}
+              width={Dimensions.get("window").width} // from react-native
+              height={200}
+              chartConfig={{
+                backgroundGradientFrom: "#786BFF",
+                backgroundGradientTo: "#786BFF",
+                decimalPlaces: 2, // optional, defaults to 2dp
+                color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`
+              }}
+              style={{ marginVertical: 7 }}
+              bezier
+            />
+          </View>
+          <View style={{ flex: 1, flexDirection: "row" }}>
             <View
               style={{
-                backgroundColor: "green",
                 flex: 2,
                 justifyContent: "center",
                 alignItems: "center"
               }}
             >
-              <Text style={styles.label}>Next pray schedule</Text>
+              <Text style={styles.label}>Next schedule updates</Text>
               <TimerCountdown
-                initialSecondsRemaining={24 * 60 * 60 * 1000}
+                initialSecondsRemaining={this.getRemainingTime()}
                 allowFontScaling={true}
-                style={styles.welcome}
+                style={[styles.welcome, { color: "#aaaaaa" }]}
                 formatSecondsRemaining={milliseconds => {
                   const remainingSec = Math.round(milliseconds / 1000);
                   const seconds = parseInt((remainingSec % 60).toString(), 10);
@@ -121,14 +194,129 @@ export default class App extends React.Component {
                 alignItems: "center"
               }}
             >
-              <Text style={styles.label}>Last schedule update</Text>
-              <Text>{moment().format("DD MMM YYYY h:mm:ss")}</Text>
+              <Text style={[styles.label]}>Last schedule updates</Text>
+              <Text
+                style={[styles.welcome, styles.label, { color: "#aaaaaa" }]}
+              >
+                {this.state.lastScheduleUpdate}
+              </Text>
             </View>
           </View>
         </View>
-        <View style={[styles.itemcontainer, { flex: 6 }]} />
+        <View style={[styles.itemcontainer, { flex: 6 }]}>
+          {this.state.data != null ? (
+            <React.Fragment>
+              <ScheduleItem name="Shubuh" time={this.state.data.Fajr} />
+              <ScheduleItem name="Dzuhur" time={this.state.data.Dhuhr} />
+              <ScheduleItem name="Ashar" time={this.state.data.Asr} />
+              <ScheduleItem name="Maghrib" time={this.state.data.Maghrib} />
+              <ScheduleItem name="Isya" time={this.state.data.Isha} />
+            </React.Fragment>
+          ) : (
+            <Text style={{ justifyContent: "center", alignSelf: "center" }}>
+              Data is outdated
+            </Text>
+          )}
+        </View>
       </View>
     );
+  }
+
+  getRemainingTime() {
+    const currentTime = new Date().getTime(); //current unix timestamp
+    const execTime = new Date().setHours(7, 29, 0, 0); //API call time = today at 20:00
+
+    if (currentTime < execTime) {
+      //it's currently earlier than 20:00
+      timeLeft = execTime - currentTime;
+    } else {
+      //it's currently later than 20:00, schedule for tomorrow at 20:00
+      timeLeft = execTime + 24 * 60 * 60 * 1000 - currentTime;
+    }
+    return timeLeft;
+  }
+
+  fetchNewSchedule() {
+    axios({
+      method: "get",
+      url: "https://time.siswadi.com/pray/bandung",
+      timeout: 15 * 1000
+    })
+      .then(result => {
+        console.log(result.data.data);
+        AsyncStorage.setItem("schedule", JSON.stringify(result.data.data));
+        AsyncStorage.setItem("appShouldFetchSchedule", false);
+        AsyncStorage.setItem(
+          "lastUpdate",
+          moment().format("DD MMM YYYY h:mm:ss")
+        );
+        this.setState(
+          {
+            ...this.state,
+            data: result.data.data,
+            lastScheduleUpdate: moment().format("DD MMM YYYY h:mm:ss")
+          },
+          () => {
+            this.setAlarm();
+            this.makeNotification();
+          }
+        );
+      })
+      .catch(error => console.log(error));
+    // fetch("https://time.siswadi.com/pray/bandung")
+    //   .then(response => response.json())
+    //   .then(responseJSON => {
+    //     AsyncStorage.setItem("schedule", JSON.stringify(responseJSON.data));
+    //     AsyncStorage.setItem("appShouldFetchSchedule", false);
+    //     AsyncStorage.setItem(
+    //       "lastUpdate",
+    //       moment().format("DD MMM YYYY h:mm:ss")
+    //     );
+    //     this.setState(
+    //       {
+    //         ...this.state,
+    //         data: responseJSON.data,
+    //         lastScheduleUpdate: moment().format("DD MMM YYYY h:mm:ss")
+    //       },
+    //       () => console.log(this.state.data[0])
+    //     );
+    //   })
+    //   .catch(error => {
+    //     console.log(error);
+    //   });
+  }
+  getScheduleFromStorage() {
+    AsyncStorage.getItem("schedule", (error, result) => {
+      if (result) {
+        this.setState({
+          ...this.state,
+          data: JSON.parse(result)
+        });
+      }
+    });
+  }
+  setAlarm() {
+    var count = 0;
+    const time = [
+      { name: "Shubuh", time: this.state.data.Fajr.split(":") },
+      { name: "Dzuhur", time: this.state.data.Dhuhr.split(":") },
+      { name: "Ashar", time: this.state.data.Asr.split(":") },
+      { name: "Maghrib", time: this.state.data.Maghrib.split(":") },
+      { name: "Isya", time: this.state.data.Isha.split(":") }
+    ];
+    const intervalId = BackgroundTimer.setInterval(() => {
+      if (count < 5) {
+        RNAlarmClock.createAlarm(
+          time[count].name,
+          parseInt(time[count].time[0]),
+          parseInt(time[count].time[1])
+        );
+        count++;
+      } else {
+        BackgroundTimer.clearInterval(intervalId);
+      }
+    }, 9000);
+    // RNAlarmClock.createAlarm(x, parseInt(time[x][0]), parseInt(time[x][1]));
   }
 }
 
@@ -139,7 +327,8 @@ const styles = StyleSheet.create({
     flex: 1
   },
   label: {
-    fontSize: 17
+    fontSize: 16,
+    color: "#786BFF"
   },
   welcome: {
     fontSize: 20,

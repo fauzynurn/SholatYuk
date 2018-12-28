@@ -138,6 +138,9 @@ android {
 }
 
 dependencies {
+    compile project(':react-native-alarm-notification')
+    compile project(':react-native-alarm-clock')
+    compile project(':react-native-svg')
     compile project(':react-native-background-timer')
     compile project(':react-native-push-notification')
     implementation fileTree(dir: "libs", include: ["*.jar"])

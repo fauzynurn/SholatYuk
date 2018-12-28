@@ -1,4 +1,10 @@
 rootProject.name = 'jadwalsolat'
+include ':react-native-alarm-notification'
+project(':react-native-alarm-notification').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-alarm-notification/android')
+include ':react-native-alarm-clock'
+project(':react-native-alarm-clock').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-alarm-clock/android/app')
+include ':react-native-svg'
+project(':react-native-svg').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-svg/android')
 include ':react-native-system-notification'
 project(':react-native-system-notification').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-system-notification/android')
 include ':react-native-background-timer'
