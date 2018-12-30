@@ -10,10 +10,12 @@ import React, { Component } from "react";
 import TimerCountdown from "react-native-timer-countdown";
 import moment from "moment";
 import RNAlarmClock from "react-native-alarm-clock";
+import { notifyUpdateResult } from "./functions/notifications";
 import ReactNativeAN from "react-native-alarm-notification";
 import axios from "axios";
 import { LineChart } from "react-native-chart-kit";
 import PushNotification from "react-native-push-notification";
+import { Button } from "react-native-elements";
 import {
   Platform,
   AsyncStorage,
@@ -34,6 +36,9 @@ export default class App extends React.Component {
     appShouldUpdate: false,
     someText: "null",
     data: null,
+    dateNow: moment("January 2 2019 10:07 AM")
+      .format("LLL")
+      .toString(),
     lastScheduleUpdate: "null"
   };
   makeNotification() {
@@ -70,6 +75,35 @@ export default class App extends React.Component {
     var ref = this;
     // var count = 1;
     // var minutes = 8;
+    AsyncStorage.getItem("dateNow", (error, result) => {
+      if (!result) {
+        AsyncStorage.setItem(
+          "dateNow",
+          moment()
+            .format("LLL")
+            .toString()
+        );
+        this.setState({
+          ...this.state,
+          dateNow: moment()
+            .format("LLL")
+            .toString()
+        });
+      } else {
+        this.setState({
+          ...this.state,
+          dateNow: result
+        });
+      }
+    });
+    AsyncStorage.getItem("lastUpdate", (error, result) => {
+      if (result) {
+        this.setState({
+          ...this.state,
+          lastScheduleUpdate: result
+        });
+      }
+    });
     const timeLeft = ref.getRemainingTime();
     BackgroundTimer.setTimeout(function() {
       ref.setState(
@@ -89,26 +123,26 @@ export default class App extends React.Component {
         );
       }, 86400000);
     }, timeLeft);
-    NetInfo.isConnected.fetch().then(res => {
-      if (ref.state.appShouldUpdate) {
-        ref.setState({
-          ...this.state,
-          someText: "it's working"
-        });
-      }
-      ref.setState({
-        isConnected: res
-      });
-    });
-    function handleFirstConnectivityChange(res) {
-      ref.setState({
-        isConnected: res
-      });
-    }
-    NetInfo.isConnected.addEventListener(
-      "connectionChange",
-      handleFirstConnectivityChange
-    );
+    // NetInfo.isConnected.fetch().then(res => {
+    //   if (ref.state.appShouldUpdate) {
+    //     ref.setState({
+    //       ...this.state,
+    //       someText: "it's working"
+    //     });
+    //   }
+    //   ref.setState({
+    //     isConnected: res
+    //   });
+    // });
+    // function handleFirstConnectivityChange(res) {
+    //   ref.setState({
+    //     isConnected: res
+    //   });
+    // }
+    // NetInfo.isConnected.addEventListener(
+    //   "connectionChange",
+    //   handleFirstConnectivityChange
+    // );
     this.getScheduleFromStorage();
   }
 
@@ -122,40 +156,37 @@ export default class App extends React.Component {
             { flexDirection: "column", flex: 4, marginBottom: 10 }
           ]}
         >
-          <View style={{ backgroundColor: "#786BFF", flex: 2.3 }}>
-            <LineChart
-              data={{
-                labels: [
-                  "January",
-                  "February",
-                  "March",
-                  "April",
-                  "May",
-                  "June"
-                ],
-                datasets: [
-                  {
-                    data: [
-                      Math.random() * 100,
-                      Math.random() * 100,
-                      Math.random() * 100,
-                      Math.random() * 100,
-                      Math.random() * 100,
-                      Math.random() * 100
-                    ]
-                  }
-                ]
+          <View
+            style={{
+              justifyContent: "center",
+              alignItems: "center",
+              backgroundColor: "#786BFF",
+              flex: 2.3
+            }}
+          >
+            <Text style={{ fontSize: 80, color: "white" }}>
+              {moment(this.state.dateNow)
+                .diff(moment().format("LLL"), "days")
+                .toString()}
+            </Text>
+            <Text style={{ fontSize: 20, fontWeight: "bold", color: "white" }}>
+              Days Elapsed
+            </Text>
+            <Button
+              title="Reset"
+              borderRadius={20}
+              buttonStyle={{ height: 18, marginTop: 15 }}
+              textStyle={{ fontSize: 15 }}
+              onPress={() => {
+                AsyncStorage.setItem("dateNow", moment().format("LLL"));
+                this.setState({
+                  ...this.state,
+                  dateNow: moment()
+                    .format("LLL")
+                    .toString()
+                });
               }}
-              width={Dimensions.get("window").width} // from react-native
-              height={200}
-              chartConfig={{
-                backgroundGradientFrom: "#786BFF",
-                backgroundGradientTo: "#786BFF",
-                decimalPlaces: 2, // optional, defaults to 2dp
-                color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`
-              }}
-              style={{ marginVertical: 7 }}
-              bezier
+              outline
             />
           </View>
           <View style={{ flex: 1, flexDirection: "row" }}>
@@ -213,9 +244,22 @@ export default class App extends React.Component {
               <ScheduleItem name="Isya" time={this.state.data.Isha} />
             </React.Fragment>
           ) : (
-            <Text style={{ justifyContent: "center", alignSelf: "center" }}>
-              Data is outdated
-            </Text>
+            <View>
+              <View style={{ alignSelf: "center" }}>
+                <Text>
+                  Schedules are either outdated or failed to retrieve.
+                </Text>
+              </View>
+              <View style={{ marginTop: 20, alignSelf: "center" }}>
+                <Button
+                  buttonStyle={{ height: 39, alignSelf: "center" }}
+                  title="Retry"
+                  borderRadius={15}
+                  backgroundColor="#786BFF"
+                  onPress={this.fetchNewSchedule}
+                />
+              </View>
+            </View>
           )}
         </View>
       </View>
@@ -224,7 +268,7 @@ export default class App extends React.Component {
 
   getRemainingTime() {
     const currentTime = new Date().getTime(); //current unix timestamp
-    const execTime = new Date().setHours(7, 29, 0, 0); //API call time = today at 20:00
+    const execTime = new Date().setHours(0, 0, 0, 0); //API call time = today at 20:00
 
     if (currentTime < execTime) {
       //it's currently earlier than 20:00
@@ -236,14 +280,13 @@ export default class App extends React.Component {
     return timeLeft;
   }
 
-  fetchNewSchedule() {
+  fetchNewSchedule = () => {
     axios({
       method: "get",
       url: "https://time.siswadi.com/pray/bandung",
       timeout: 15 * 1000
     })
       .then(result => {
-        console.log(result.data.data);
         AsyncStorage.setItem("schedule", JSON.stringify(result.data.data));
         AsyncStorage.setItem("appShouldFetchSchedule", false);
         AsyncStorage.setItem(
@@ -258,33 +301,20 @@ export default class App extends React.Component {
           },
           () => {
             this.setAlarm();
-            this.makeNotification();
+            notifyUpdateResult(
+              `Schedule updated successfully at ${moment().format(
+                "DD MMM YYYY h:mm:ss"
+              )}`
+            );
           }
         );
       })
-      .catch(error => console.log(error));
-    // fetch("https://time.siswadi.com/pray/bandung")
-    //   .then(response => response.json())
-    //   .then(responseJSON => {
-    //     AsyncStorage.setItem("schedule", JSON.stringify(responseJSON.data));
-    //     AsyncStorage.setItem("appShouldFetchSchedule", false);
-    //     AsyncStorage.setItem(
-    //       "lastUpdate",
-    //       moment().format("DD MMM YYYY h:mm:ss")
-    //     );
-    //     this.setState(
-    //       {
-    //         ...this.state,
-    //         data: responseJSON.data,
-    //         lastScheduleUpdate: moment().format("DD MMM YYYY h:mm:ss")
-    //       },
-    //       () => console.log(this.state.data[0])
-    //     );
-    //   })
-    //   .catch(error => {
-    //     console.log(error);
-    //   });
-  }
+      .catch(error =>
+        notifyUpdateResult(
+          `Schedule update failed at ${moment().format("DD MMM YYYY h:mm:ss")}`
+        )
+      );
+  };
   getScheduleFromStorage() {
     AsyncStorage.getItem("schedule", (error, result) => {
       if (result) {
@@ -316,7 +346,6 @@ export default class App extends React.Component {
         BackgroundTimer.clearInterval(intervalId);
       }
     }, 9000);
-    // RNAlarmClock.createAlarm(x, parseInt(time[x][0]), parseInt(time[x][1]));
   }
 }
 
@@ -341,6 +370,7 @@ const styles = StyleSheet.create({
     marginBottom: 5
   },
   itemcontainer: {
-    backgroundColor: "white"
+    backgroundColor: "white",
+    justifyContent: "center"
   }
 });
